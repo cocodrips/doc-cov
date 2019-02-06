@@ -2,9 +2,13 @@ import argparse
 import enum
 import importlib
 import inspect
+import os
 import pkgutil
 import pydoc
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Type(enum.Enum):
@@ -136,7 +140,7 @@ def count_module(object):
     for key, value in inspect.getmembers(object, inspect.isclass):
         # if __all__ exists, believe it.  Otherwise use old heuristic.
         if (all is not None or
-                (inspect.getmodule(value) or object) is object):
+            (inspect.getmodule(value) or object) is object):
             if pydoc.visiblename(key, all, object):
                 classes.append((key, value))
                 cdict[key] = cdict[value] = '#' + key
@@ -153,7 +157,7 @@ def count_module(object):
     for key, value in inspect.getmembers(object, inspect.isroutine):
         # if __all__ exists, believe it.  Otherwise use old heuristic.
         if (all is not None or
-                inspect.isbuiltin(value) or inspect.getmodule(value) is object):
+            inspect.isbuiltin(value) or inspect.getmodule(value) is object):
             if pydoc.visiblename(key, all, object):
                 funcs.append((key, value))
                 fdict[key] = '#-' + key
@@ -184,19 +188,28 @@ def walk(root_path):
         [Coverage], Coverage: Return all module coverage and summary.
     """
 
-    sys.path.insert(0, root_path)
+    package_name = os.path.basename(os.path.normpath(root_path))
+    scriptdir = os.path.abspath(os.path.join(root_path, '..'))
+
+    if scriptdir in sys.path:
+        sys.path.remove(scriptdir)
+    sys.path.insert(0, scriptdir)
+
     packages = pkgutil.walk_packages([root_path])
 
     coverages = []
     summary = Coverage()
     for importer, modname, ispkg in packages:
         spec = pkgutil._get_spec(importer, modname)
+        try:
+            object = importlib._bootstrap._load(spec)
+            counter = count_module(object)
 
-        object = importlib._bootstrap._load(spec)
-        counter = count_module(object)
-
-        coverages.append(counter)
-        summary += counter
+            coverages.append(counter)
+            summary += counter
+        except ImportError as e:
+            logger.error(f"Failed to import {modname}: {e}")
+            continue
 
     summary.name = 'coverage'
     return coverages, summary
@@ -230,11 +243,14 @@ def entry_point():
                         help="[str,csv]")
     parser.add_argument("--all", dest='all', action='store_true', default=False,
                         help="Print all module coverage")
-    parser.add_argument("-m", "--module", dest='module', action='store_true', default=False,
+    parser.add_argument("-m", "--module", dest='module', action='store_true',
+                        default=False,
                         help="Print docstring coverage of modules.")
-    parser.add_argument("-f", "--function", dest='function', action='store_true', default=False,
+    parser.add_argument("-f", "--function", dest='function',
+                        action='store_true', default=False,
                         help="Print docstring coverage of public functions.")
-    parser.add_argument("-c", "--class", dest='klass', action='store_true', default=False,
+    parser.add_argument("-c", "--class", dest='klass', action='store_true',
+                        default=False,
                         help="Print docstring coverage of classes.")
 
     args = parser.parse_args()
