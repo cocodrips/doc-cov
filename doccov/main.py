@@ -200,15 +200,21 @@ def walk(root_path):
     coverages = []
     summary = Coverage()
     for importer, modname, ispkg in packages:
-        spec = pkgutil._get_spec(importer, modname)
         try:
-            object = importlib._bootstrap._load(spec)
+            if ispkg:
+                spec = pkgutil._get_spec(importer, modname)
+                object = importlib._bootstrap._load(spec)
+            else:
+                import_path = f"{package_name}.{modname}"
+                object = importlib.import_module(import_path)
             counter = count_module(object)
 
             coverages.append(counter)
             summary += counter
         except ImportError as e:
             logger.error(f"Failed to import {modname}: {e}")
+            continue
+        except Exception as e:
             continue
 
     summary.name = 'coverage'
