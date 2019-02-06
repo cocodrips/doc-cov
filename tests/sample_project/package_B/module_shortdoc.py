@@ -1,4 +1,4 @@
-from package_A import module_fulldoc
+from sample_project import package_A
 
 
 class ShortDoc():

@@ -35,26 +35,6 @@ def nodoc_func():
     pass
 
 
-def test_package_A():
-    _, coverage = walk('tests/sample_project/package_A')
-    assert coverage.counters[Type.FUNCTION.name].all == 1
-    assert coverage.counters[Type.FUNCTION.name].true == 1
-    assert coverage.counters[Type.MODULE.name].all == 1
-    assert coverage.counters[Type.MODULE.name].true == 1
-    assert coverage.counters[Type.CLASS.name].all == 0
-    assert coverage.counters[Type.CLASS.name].true == 0
-
-
-def test_package_B():
-    _, coverage = walk('tests/sample_project/package_B')
-    assert coverage.counters[Type.FUNCTION.name].all == 3
-    assert coverage.counters[Type.FUNCTION.name].true == 1
-    assert coverage.counters[Type.MODULE.name].all == 3
-    assert coverage.counters[Type.MODULE.name].true == 0
-    assert coverage.counters[Type.CLASS.name].all == 1
-    assert coverage.counters[Type.CLASS.name].true == 1
-
-
 def test_sample_project():
     _, coverage = walk('tests/sample_project')
     assert coverage.counters[Type.FUNCTION.name].all == 5
@@ -70,4 +50,5 @@ def test_output_all_csv():
 
 
 def test_output_str():
-    summary('tests/sample_project', 'str', [Type.FUNCTION, Type.MODULE, Type.CLASS], False)
+    summary('tests/sample_project', 'str',
+            [Type.FUNCTION, Type.MODULE, Type.CLASS], False)

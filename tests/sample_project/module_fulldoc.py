@@ -1,6 +1,6 @@
 """Full document module."""
-import package_A
-
+from sample_project import package_A
+import logging # unused 
 
 class FullDoc():
     """
