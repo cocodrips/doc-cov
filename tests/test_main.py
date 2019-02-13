@@ -52,3 +52,25 @@ def test_output_all_csv():
 def test_output_str():
     summary('tests/sample_project', 'str',
             [Type.FUNCTION, Type.MODULE, Type.CLASS], False)
+
+
+def test_ignore_path():
+    _, coverage = walk('tests/sample_project', ['tests/sample_project/package_A'])
+    # report(coverage, 'str', [Type.FUNCTION, Type.CLASS, Type.MODULE], False)
+    assert coverage.counters[Type.FUNCTION.name].all == 4
+    assert coverage.counters[Type.FUNCTION.name].true == 2
+    assert coverage.counters[Type.MODULE.name].all == 5
+    assert coverage.counters[Type.MODULE.name].true == 1
+    assert coverage.counters[Type.CLASS.name].all == 2
+    assert coverage.counters[Type.CLASS.name].true == 2
+
+
+def test_ignore_path_tree():
+    _, coverage = walk('tests/sample_project', ['tests/sample_project/package_B'])
+    # report(coverage, 'str', [Type.FUNCTION, Type.CLASS, Type.MODULE], False)
+    assert coverage.counters[Type.FUNCTION.name].all == 2
+    assert coverage.counters[Type.FUNCTION.name].true == 2
+    assert coverage.counters[Type.MODULE.name].all == 3
+    assert coverage.counters[Type.MODULE.name].true == 3
+    assert coverage.counters[Type.CLASS.name].all == 1
+    assert coverage.counters[Type.CLASS.name].true == 1
