@@ -2,7 +2,7 @@
 from . import package_A
 import logging # unused 
 
-class FullDoc():
+class NonPackageFullDoc():
     """
     Short class summary.
 
@@ -13,8 +13,17 @@ class FullDoc():
         """init"""
         pass
 
+    def class_doc_func(self):
+        """
+        Class func
+        """
+        pass
 
-def function_a(arg1, arg2):
+    def class_no_doc_func(self):
+        pass
+
+
+def non_package_function(arg1, arg2):
     """
     Summary.
 
