@@ -1,6 +1,6 @@
 """Module description"""
 
-def full_doc(arg1, arg2):
+def package_a_full_doc_func(arg1, arg2):
     """
     Summary.
 
@@ -13,5 +13,5 @@ def full_doc(arg1, arg2):
     """
     return True
 
-def _pricate_func(arg1, arg2):
+def _package_a_private_func(arg1, arg2):
     return True

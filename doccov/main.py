@@ -2,11 +2,12 @@ import argparse
 import enum
 import importlib
 import inspect
+import logging
 import os
+import pathlib
 import pkgutil
 import pydoc
 import sys
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,11 @@ class Coverage():
         for t in Type.__members__:
             merge[t] = self.counters[t] + other.counters[t]
 
-        return Coverage(counters=merge)
+        return Coverage(name=self.name, counters=merge)
+
+    def __repr__(self):
+        c = self.counters[Type.FUNCTION.name]
+        return f'<Coverage: {self.name} function:{c.true}/{c.all}>'
 
     def add(self, object, type_):
         """
@@ -123,6 +128,46 @@ def has_doc(object):
     return int(object.__doc__.strip() != "")
 
 
+
+def visiblename(name, all=None, obj=None):
+
+    if name in {'__author__', '__builtins__', '__cached__', '__credits__',
+                '__date__', '__doc__', '__file__', '__spec__',
+                '__loader__', '__module__', '__name__', '__package__',
+                '__path__', '__qualname__', '__slots__', '__version__'}:
+        return False
+    if name.startswith('__') and name.endswith('__'):
+        return True
+    if name.startswith('_') and hasattr(obj, '_fields'):
+        return True
+    if all is not None:
+        return name in all
+    else:
+        return not name.startswith('_')
+
+
+def count_class(object):
+
+    name = object.__name__  # ignore the passed-in name
+    try:
+        all = object.__all__
+    except AttributeError:
+        all = None
+
+    coverage = Coverage(name=name)
+
+    if not inspect.isclass(object):
+        return coverage
+
+    coverage.add(object, Type.CLASS)
+    for func_name, obj in inspect.getmembers(object, inspect.isfunction):
+        if inspect.isbuiltin(obj):
+            continue
+        if visiblename(func_name, all, object):
+            coverage.add(obj, Type.FUNCTION)
+
+    return coverage
+
 def count_module(object):
     """
     Reference: pydoc.HTMLDoc.docmodule
@@ -136,46 +181,66 @@ def count_module(object):
     except AttributeError:
         all = None
 
-    classes, cdict = [], {}
-    for key, value in inspect.getmembers(object, inspect.isclass):
-        # if __all__ exists, believe it.  Otherwise use old heuristic.
-        if (all is not None or
-            (inspect.getmodule(value) or object) is object):
-            if pydoc.visiblename(key, all, object):
-                classes.append((key, value))
-                cdict[key] = cdict[value] = '#' + key
-    for key, value in classes:
-        for base in value.__bases__:
-            key, modname = base.__name__, base.__module__
-            module = sys.modules.get(modname)
-            if modname != name and module and hasattr(module, key):
-                if getattr(module, key) is base:
-                    if not key in cdict:
-                        cdict[key] = cdict[base] = modname + '.html#' + key
-
-    funcs, fdict = [], {}
-    for key, value in inspect.getmembers(object, inspect.isroutine):
-        # if __all__ exists, believe it.  Otherwise use old heuristic.
-        if (all is not None or
-            inspect.isbuiltin(value) or inspect.getmodule(value) is object):
-            if pydoc.visiblename(key, all, object):
-                funcs.append((key, value))
-                fdict[key] = '#-' + key
-                if inspect.isfunction(value): fdict[value] = fdict[key]
-
     coverage = Coverage(name=name)
 
-    coverage.add(object, Type.MODULE)
-    for _, obj in classes:
-        coverage.add(obj, Type.CLASS)
+    if inspect.ismodule(object):
+        coverage.add(object, Type.MODULE)
 
-    for _, obj in funcs:
-        coverage.add(obj, Type.FUNCTION)
+    for class_name, obj in inspect.getmembers(object, inspect.isclass):
+        # if __all__ exists, believe it.  Otherwise use old heuristic.
+        if (all is not None or
+                (inspect.getmodule(obj) or object) is object):
+            if visiblename(class_name, all, object):
+                coverage += count_class(obj)
+
+    for func_name, obj in inspect.getmembers(object, inspect.isfunction):
+        if visiblename(func_name, all, object):
+            if inspect.isfunction(obj):
+                coverage.add(obj, Type.FUNCTION)
 
     return coverage
 
 
-def walk(root_path):
+def _get_coverage(package_name, importer, modname, ispkg, ignores):
+    """
+
+    Args:
+        importer:
+        modname:
+        ispkg:
+        ignores [pathlib.Path]:
+
+    Returns:
+
+    """
+
+    importer_path = pathlib.Path(importer.path)
+    for ignore in ignores:
+        if importer_path.samefile(ignore):
+            return
+        if str(pathlib.Path(importer.path).resolve()).startswith(str(ignore)):
+            return
+        if ispkg and (importer_path / modname.split('.')[-1]).samefile(ignore):
+            return
+
+    try:
+        if ispkg:
+            spec = pkgutil._get_spec(importer, modname)
+            object = importlib._bootstrap._load(spec)
+        else:
+            import_path = f"{package_name}.{modname}"
+            object = importlib.import_module(import_path)
+        counter = count_module(object)
+        return counter
+    except ImportError as e:
+        logger.error(f"Failed to import {modname}: {e}")
+        return
+    except Exception as e:
+        logger.error(f"Failed to parse: {modname}: {e}")
+        return
+
+
+def walk(root_path, ignore_paths=None):
     """
     Count coverage of root_path tree.
 
@@ -199,29 +264,22 @@ def walk(root_path):
 
     coverages = []
     summary = Coverage()
-    for importer, modname, ispkg in packages:
-        try:
-            if ispkg:
-                spec = pkgutil._get_spec(importer, modname)
-                object = importlib._bootstrap._load(spec)
-            else:
-                import_path = f"{package_name}.{modname}"
-                object = importlib.import_module(import_path)
-            counter = count_module(object)
 
-            coverages.append(counter)
-            summary += counter
-        except ImportError as e:
-            logger.error(f"Failed to import {modname}: {e}")
-            continue
-        except Exception as e:
-            continue
+    ignores = []
+    if ignore_paths:
+        ignores = [pathlib.Path(ignore_path).resolve() for ignore_path in ignore_paths]
+
+    for importer, modname, ispkg in packages:
+        coverage = _get_coverage(package_name, importer, modname, ispkg, ignores)
+        if coverage:
+            coverages.append(coverage)
+            summary += coverage
 
     summary.name = 'coverage'
     return coverages, summary
 
 
-def summary(root_path, output, output_type, is_all):
+def summary(root_path, output, output_type, is_all, ignore_paths=None):
     """
     Args:
         root_path: Project path
@@ -233,10 +291,10 @@ def summary(root_path, output, output_type, is_all):
     Returns:
 
     """
-    coverages, summary = walk(root_path)
+    coverages, summary = walk(root_path, ignore_paths)
 
     if is_all:
-        for coverage in coverages:
+        for coverage in sorted(coverages, key=lambda x: x.name):
             report(coverage, output, output_type, is_all)
 
     report(summary, output, output_type, is_all)
@@ -247,6 +305,9 @@ def entry_point():
     parser.add_argument("project_path", type=str)
     parser.add_argument("--output", dest='output', default='str', type=str,
                         help="[str,csv]")
+    parser.add_argument("--ignore", dest='ignores', type=str, nargs='*',
+                        help="Coverage of packages under <ignore> path is not aggregated.")
+
     parser.add_argument("--all", dest='all', action='store_true', default=False,
                         help="Print all module coverage")
     parser.add_argument("-m", "--module", dest='module', action='store_true',
@@ -269,7 +330,7 @@ def entry_point():
     if args.function or not output_type:
         output_type.append(Type.FUNCTION)
 
-    summary(args.project_path, args.output, output_type, args.all)
+    summary(args.project_path, args.output, output_type, args.all, args.ignores)
 
 
 if __name__ == '__main__':
