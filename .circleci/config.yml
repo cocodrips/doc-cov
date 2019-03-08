@@ -1,0 +1,22 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: python:3.6
+
+    working_directory: /var/task
+
+    steps:
+      - checkout
+
+      - run:
+          name: Install doccov
+          command: python setup.py install
+
+      - run:
+          name: Run doccov
+          command: doccov tests/sample_project -fmc --output csv > doccov.csv
+
+      - run:
+          name: Report
+          command: doccov-report doccov.csv
