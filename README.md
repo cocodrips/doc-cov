@@ -108,3 +108,22 @@ coverage
 -----------------------------
 function     3 /   5 60.00%
 ```
+
+## Report to pull request
+
+Add comment to *github* pull request.
+
+```
+$ doccov <project> -fmc --output csv > doccov.csv
+$ GITHUB_TOKEN=XXXXX doccov-report doccov.csv
+```
+
+**CircleCi**  
+Add pull request comment using circle-ci environment.
+
+**Other**  
+Required following environment
+- PROJECT_USERNAME
+- PROJECT_REPONAME
+- PR_NUMBER
+ 
