@@ -16,3 +16,7 @@ jobs:
       - run:
           name: Run doccov
           command: doccov tests/sample_project -fmc --output csv > doccov.csv
+
+      - run:
+          name: Report
+          command: doccov-report doccov.csv

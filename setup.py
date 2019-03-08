@@ -39,6 +39,7 @@ setup(
     entry_points={
         'console_scripts': [
             'doccov = doccov.main:entry_point',
+            'doccov-report = doccov.report:entry_point',
         ],
     },
 )
