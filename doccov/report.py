@@ -1,3 +1,4 @@
+"""Add comment doccov report to github pull request"""
 import argparse
 import http.client
 import json
