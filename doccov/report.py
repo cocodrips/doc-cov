@@ -43,7 +43,7 @@ def comment_pr(args):
         token = os.environ.get('GITHUB_TOKEN')
 
     if not token:
-        raise ("No github token.")
+        raise Exception("No github token.")
 
     headers = {
         'Authorization': f"token {token}",
@@ -57,10 +57,13 @@ def comment_pr(args):
     if os.environ.get('CIRCLECI') == 'true':
         user = os.environ.get('CIRCLE_PROJECT_USERNAME')
         repo = os.environ.get('CIRCLE_PROJECT_REPONAME')
-        issue_num = os.environ.get('CIRCLE_PR_NUMBER')
+        pr = os.environ.get('CIRCLE_PULL_REQUEST')
+        if pr:
+            issue_num = pr.split('/')[-1]
 
-    if not any([user, repo, issue_num]):
+    if not user or not repo or not issue_num:
         logger.error("Failed to get repository info.")
+        return
 
     # -----------------------------------
     # Delete old doc-coverage comment
