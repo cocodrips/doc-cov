@@ -35,9 +35,6 @@ def comment_pr(args):
     if not result:
         Exception("Report file has no contents.")
 
-    conn = http.client.HTTPSConnection("api.github.com")
-    payload = ""
-
     token = args.token
     if not token:
         token = os.environ.get('GITHUB_TOKEN')
@@ -68,15 +65,16 @@ def comment_pr(args):
     # -----------------------------------
     # Delete old doc-coverage comment
     # -----------------------------------
-
+    payload = ""
+    conn = http.client.HTTPSConnection("api.github.com")
     conn.request("GET", f"/repos/{user}/{repo}/issues/{issue_num}/comments", payload, headers)
-
     data = conn.getresponse().read()
     comments = json.loads(data.decode("utf-8"))
     for comment in comments:
         if comment['body'].startswith(markdown_header):
             comment_id = comment['id']
             logger.info(f'delete {comment_id}')
+            conn = http.client.HTTPSConnection("api.github.com")
             conn.request("DELETE", f"/repos/{user}/{repo}/issues/comments/{comment_id}",
                          payload, headers)
             conn.getresponse()
@@ -87,9 +85,10 @@ def comment_pr(args):
     payload = {
         "body": csv_to_table(args.report)
     }
+    conn = http.client.HTTPSConnection("api.github.com")
     conn.request("POST", f"/repos/{user}/{repo}/issues/{issue_num}/comments",
                  json.dumps(payload), headers)
-    res = conn.getresponse()
+    conn.getresponse()
 
 
 def entry_point():
