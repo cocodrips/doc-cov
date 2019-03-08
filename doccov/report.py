@@ -31,6 +31,10 @@ def csv_to_table(filepath):
 
 
 def comment_pr(args):
+    result = csv_to_table(args.report)
+    if not result:
+        Exception("Report file has no contents.")
+
     conn = http.client.HTTPSConnection("api.github.com")
     payload = ""
 
